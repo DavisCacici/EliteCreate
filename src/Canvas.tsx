@@ -105,9 +105,9 @@ const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
     setIsDrawing(false);
     if (contextRef.current) {
       contextRef.current.closePath();
-      setDrawing((prevState) => ({ ...prevState, [key]: listdrawing }));
+      setDrawing(() => ({[key]: listdrawing }));
       key++;
-      // listdrawing = [];
+      listdrawing = [];
       setUndos([]);
     }
   };
