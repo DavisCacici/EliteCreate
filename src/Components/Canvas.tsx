@@ -7,17 +7,15 @@ color: string
 }
 
 interface DrawingState {
-  [key: number]: Punti[];
+  [key: string]: Punti[];
 }
 
-const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
+const CanvasDrawing: React.FC<{ penColor: string; undo: boolean }> = ({ penColor, undo }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [drawing, setDrawing] = useState<DrawingState>({});
-  const [undos, setUndos] = useState<DrawingState>({});
-  let listdrawing: Punti[] = [];
-  let key: number = 0;
+  var list: Punti[] = [];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -27,47 +25,45 @@ const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
     }
   }, []);
 
-  
+  useEffect(() => {
+    undoLastAction();
+  }, [undo]);
 
   const undoLastAction = () => {
     const drawingKeys = Object.keys(drawing);
     if (drawingKeys.length > 0) {
-      const lastKey = Number(drawingKeys[drawingKeys.length - 1]);
-      const lastAction = drawing[lastKey];
+      const lastKey = drawingKeys[drawingKeys.length - 1];
       setDrawing((prevState) => {
         const { [lastKey]: _, ...newState } = prevState;
         return newState;
       });
-      setUndos((prevUndos) => ({ ...prevUndos, [lastKey]: lastAction }));
+      const tempDrawing = { ...drawing };
+      delete tempDrawing[lastKey];
 
       const canvas = canvasRef.current;
       const context = contextRef.current;
 
       if (canvas && context) {
         context.clearRect(0, 0, canvas.width, canvas.height);
-        for (const key in drawing) {
-          if (drawing.hasOwnProperty(key)) {
-            const actions = drawing[key];
-            for (const action of actions) {
-              context.strokeStyle = action.color;
+
+        for (const key in tempDrawing) {
+          if (tempDrawing.hasOwnProperty(key)) {
+            const actions = tempDrawing[key];
+            if (actions.length > 0) {
+              const firstAction = actions[0];
+              context.strokeStyle = firstAction.color;
               context.beginPath();
-              context.moveTo(action.x, action.y);
-              context.lineTo(action.x, action.y);
-              context.stroke();
+              context.moveTo(firstAction.x, firstAction.y);
+  
+              for (let i = 1; i < actions.length; i++) {
+                const action = actions[i];
+                context.lineTo(action.x, action.y);
+                context.stroke();
+              } 
+              
             }
           }
         }
-        
-        // Ripristina anche le azioni in coppia da undos, se presenti
-        // for (let i = 0; i < undos.length - 1; i += 2) {
-        //   const action1 = undos[i];
-        //   const action2 = undos[i + 1];
-        //   context.strokeStyle = action1.color;
-        //   context.beginPath();
-        //   context.moveTo(action1.x, action1.y);
-        //   context.lineTo(action2.x, action2.y);
-        //   context.stroke();
-        // }
       }
     }
   };
@@ -78,11 +74,14 @@ const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
     const y = e.clientY - canvasRef.current!.offsetTop;
     if (contextRef.current) {
       contextRef.current.beginPath();
-      contextRef.current.moveTo(x, y);
+      contextRef.current.moveTo(
+        x,
+        y
+      );
 
       contextRef.current.strokeStyle = penColor;
-      // setDrawing([...drawing, { x, y, color: penColor }]);
-      listdrawing.push({x: x, y: y, color: penColor});
+      list.push({x: x, y:y, color: penColor});
+     
     }
   };
 
@@ -92,24 +91,24 @@ const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
     const x = e.clientX - canvasRef.current!.offsetLeft;
     const y = e.clientY - canvasRef.current!.offsetTop;
 
-    contextRef.current.lineTo(x, y);
+    contextRef.current.lineTo(
+      x,
+      y 
+    );
     contextRef.current.stroke();
-
-    // Aggiungi l'azione corrente al registro delle azioni
-    // setDrawing([...drawing, { x, y, color: penColor }]);
-    
-    listdrawing.push({x: x, y: y, color: penColor});
+    list.push({x: x, y:y, color: penColor});
   };
 
   const endDrawing = () => {
     setIsDrawing(false);
     if (contextRef.current) {
       contextRef.current.closePath();
-      setDrawing(() => ({[key]: listdrawing }));
-      key++;
-      listdrawing = [];
-      setUndos([]);
     }
+    const ids =  Date.now().toString(); 
+    setDrawing((prevState) => ({
+      ...prevState,
+      [ids]: list,
+    }));
   };
 
   return (
@@ -123,7 +122,7 @@ const CanvasDrawing: React.FC<{ penColor: string }> = ({ penColor }) => {
         onMouseUp={endDrawing}
         style={{ border: '1px solid black', background: 'white' }}
       />
-      <button onClick={undoLastAction}>Annulla ultima modifica</button>
+      {/* <button onClick={undoLastAction}>Annulla ultima modifica</button> */}
     </div>
   );
 };
